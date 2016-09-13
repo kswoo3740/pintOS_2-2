@@ -26,27 +26,6 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 
-//명령어행 입력의 길이와 인자의 개수와 띄어쓰기가 null로 설정된 명령어 행
-/*struct CmdLine
-{
-    int len, argc;
-    char cmd[0];
-};
-
-static void
-argument_parser (struct CmdLine *cmdln)
-{
-    char pre = 0, *cmd;
-    cmdln->argc = cmd->len = 0;
-
-    for (*cmd = cmdln->cmd; *cmd; pre = *(cmd++), cmdln->len++)
-    {
-        if (*cmd == ' ')
-            *cmd = 0;
-        cmdln->len -= (!pre && !*cmd);
-        cmdln->argc += (!pre && !(*cmd));
-    }
-}*/
 
 static void
 argument_stack (char **parse, int argc, void **esp)
@@ -64,7 +43,7 @@ argument_stack (char **parse, int argc, void **esp)
     argv_addr_base[i] = (unsigned int)(*esp);
   } 
 
-  *esp = (unsigned int)*esp & 0xfffffffc;
+  *esp = (unsigned int)(*esp) & 0xfffffffc;
 
   *esp -= 4;
   **(unsigned int**)(esp) = 0;
@@ -79,7 +58,7 @@ argument_stack (char **parse, int argc, void **esp)
   *(unsigned*)(*esp) = (unsigned int)*esp + 4;
 
   *esp -= 4;
-  **(unsigend int)(*esp) = argc;
+  **(unsigned int**)(esp) = argc;
   *esp -= 4;
   **(unsigned int**)(esp) = 0;
 }
@@ -94,7 +73,7 @@ process_execute (const char *file_name)
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
-  if (cmdln == NULL)
+  if (fn_copy == NULL)
     return TID_ERROR;
 
   strlcpy (fn_copy, file_name, PGSIZE);
@@ -105,7 +84,7 @@ process_execute (const char *file_name)
 
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (thread_name, PRI_DEFAULT, start_process, cmdln);
+  tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -123,10 +102,10 @@ start_process (void *file_name_)
   char **parse = (char**) malloc (sizeof(char*));
   int argc = 0;
   char *parse_cur;
-  char *strtkn_ptr;
+  char *strtok_ptr;
 
   
-  for (temp_parsed = strtok_r(file_name, " ", &strtok_ptr); parse_cur;parse_cur = strtok_r(NULL, " ", &strtok_ptr))
+  for (parse_cur = strtok_r(file_name, " ", &strtok_ptr); parse_cur;parse_cur = strtok_r(NULL, " ", &strtok_ptr))
   {
     parse = (char**) realloc (parse, sizeof(char*)*(argc + 1));
     parse[argc] = (char*) malloc (sizeof(char) * strlen(parse_cur));
@@ -146,7 +125,9 @@ start_process (void *file_name_)
   /* If load failed, quit. */
   palloc_free_page (file_name);
 
-  if (success)
+  if (!success)
+      thread_exit();
+  /*if (success)
   {
     thread_current()->is_load = 1;  //flag가 제대로 로드 되었음
     sema_up(&thread_current()->load_sema); //부모 프로세스를 깨운다
@@ -155,7 +136,7 @@ start_process (void *file_name_)
   {
     sema_up(&thread_current()->load_sema); //부모 프로스세를깨운다
     thread_exit ();
-  }
+  }*/
 
   argument_stack (parse, argc, &if_.esp);
 
