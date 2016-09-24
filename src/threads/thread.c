@@ -88,7 +88,6 @@ void
 thread_init (void) 
 {
   ASSERT (intr_get_level () == INTR_OFF);
-
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
@@ -109,7 +108,6 @@ thread_start (void)
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
-
   /* Start preemptive thread scheduling. */
   intr_enable ();
 
@@ -172,7 +170,6 @@ thread_create (const char *name, int priority,
   struct switch_threads_frame *sf;
   tid_t tid;
   enum intr_level old_level;
-
   ASSERT (function != NULL);
 
   /* Allocate thread. */
@@ -205,6 +202,19 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
   intr_set_level (old_level);
+  
+  t->parent_thread = thread_current();
+  t->is_load = 0;
+  t->is_exit = 0;
+
+  /*initialize child list*/
+  list_init(&t->child_list);
+
+  /*initialize semaphore*/
+  sema_init(&t->exit_sema, 0); 
+  sema_init(&t->load_sema, 0);
+
+  list_push_back(&t->parent_thread->child_list, &t->child_elem);
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -288,8 +298,8 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
+    printf("thread exit\n");
   ASSERT (!intr_context ());
-
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -299,6 +309,13 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+
+  /*main이 아닌 thread는 다시 깨워준다*/
+  if (strcmp(thread_current()->name, "main"))
+  {
+    sema_up(&thread_current()->exit_sema);
+  }
+
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -470,6 +487,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+  list_init(&t->child_list);  //initialize child list
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -541,7 +559,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+     // palloc_free_page (prev);
     }
 }
 

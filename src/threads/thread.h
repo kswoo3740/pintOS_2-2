@@ -93,6 +93,7 @@ struct thread
 
     int is_load;  //프로세스가 성공적으로 생성되었는지
     int is_exit;  //프로세스가 성공적으로 종료되었는지
+    int exit_status; //프로세스의 종료 상태
 
     struct semaphore exit_sema;  //프로세스 종료 세마포어
     struct semaphore load_sema;  //프로세스 로드 세마포어

@@ -15,52 +15,56 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+void argument_stack(char **parse, int argc, void **esp);
+void remove_child_process(struct thread *child);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 
-
-static void
+                            
+void
 argument_stack (char **parse, int argc, void **esp)
 {
   int i, j;
   unsigned int argv_addr_base[argc];
-
   for (i = argc - 1; i >= 0; i--)
   {
     for (j = strlen(parse[i]); j >= 0; j--)
     {
-      *esp-=1;
+      *esp -= 1;
       **(char**)esp = parse[i][j];
+      printf("parsed %c\n",parse[i][j]);
     }
     argv_addr_base[i] = (unsigned int)(*esp);
   } 
 
-  *esp = (unsigned int)(*esp) & 0xfffffffc;
+  *esp = (unsigned int)*esp & 0xfffffffc;
 
   *esp -= 4;
-  **(unsigned int**)(esp) = 0;
+  memset(*esp, 0, sizeof(unsigned int));
 
   for (i = argc - 1; i >= 0; i--)
   {
      *esp -= 4;
-     **(unsigned**)(esp) = argv_addr_base[i];
+     *(unsigned*)(*esp) = argv_addr_base[i];
   }
 
   *esp -= 4;
-  *(unsigned*)(*esp) = (unsigned int)*esp + 4;
+  *(unsigned int*)(*esp) = (unsigned int)(*esp) + 4;
 
   *esp -= 4;
-  **(unsigned int**)(esp) = argc;
+  *(unsigned int*)(*esp) = (unsigned int)argc;
+
   *esp -= 4;
-  **(unsigned int**)(esp) = 0;
+  memset(*esp, 0, sizeof(unsigned int));
 }
 
 tid_t
@@ -69,10 +73,10 @@ process_execute (const char *file_name)
   char *fn_copy;
   char *strtok_ptr;
   tid_t tid;
-
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
+
   if (fn_copy == NULL)
     return TID_ERROR;
 
@@ -82,9 +86,10 @@ process_execute (const char *file_name)
   if (!thread_name)
     return TID_ERROR;
 
+  printf("process execute : %s\n", file_name);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (thread_name, PRI_DEFAULT, start_process, file_name);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -96,7 +101,7 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  char *file_name = (char*)file_name_;
+  char *file_name;
   struct intr_frame if_;
   bool success;
   char **parse = (char**) malloc (sizeof(char*));
@@ -104,12 +109,20 @@ start_process (void *file_name_)
   char *parse_cur;
   char *strtok_ptr;
 
-  
-  for (parse_cur = strtok_r(file_name, " ", &strtok_ptr); parse_cur;parse_cur = strtok_r(NULL, " ", &strtok_ptr))
+  file_name = palloc_get_page(0);
+  if(file_name == NULL)
+      return TID_ERROR;
+
+  strlcpy(file_name, file_name_, PGSIZE);
+
+  printf("%s\n", file_name);
+  for (parse_cur = strtok_r(file_name, " ", &strtok_ptr); parse_cur != NULL; parse_cur = strtok_r(NULL, " ", &strtok_ptr))
   {
+    printf("parse_cur : %s\n", parse_cur);
     parse = (char**) realloc (parse, sizeof(char*)*(argc + 1));
     parse[argc] = (char*) malloc (sizeof(char) * strlen(parse_cur));
     strlcpy(parse[argc], parse_cur, sizeof(char) * (strlen(parse_cur) + 1));
+    printf("parse[%d] = %s\n", argc, parse[argc]);
     argc++; 
   }
 
@@ -122,8 +135,11 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (cmd_file_name, &if_.eip, &if_.esp);
 
+  printf("uzip\n");
   /* If load failed, quit. */
+  printf("filename = %s\n", file_name);
   palloc_free_page (file_name);
+  printf("joontak\n");
 
   if (!success)
   {
@@ -138,10 +154,13 @@ start_process (void *file_name_)
   }
 
   argument_stack (parse, argc, &if_.esp);
+  hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
-  while(--argc >= 0)
+  argc--;
+  while(argc >= 0)
   {
     free(parse[argc]);
+    argc--;
   }
   free(parse);
 
@@ -151,7 +170,9 @@ start_process (void *file_name_)
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+  printf("bye\n");
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
+  printf("hi\n");
   NOT_REACHED ();
 }
 
