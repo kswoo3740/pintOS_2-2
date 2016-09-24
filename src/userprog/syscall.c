@@ -9,10 +9,13 @@ static void syscall_handler (struct intr_frame *);
 
 void check_address(void *addr);
 void get_argument(unsigned int *esp, unsigend int *arg, int argc);
-void sys_halt(void);
-void sys_exit(int status);
-bool sys_create(const char *file, unsigned int initial_size);
-bool sys_remove(const char *file);
+
+void sys_halt (void);
+void sys_exit (int status);
+bool sys_create (const char *file, unsigned int initial_size);
+bool sys_remove (const char *file);
+tid_t sys_exec (char *exec_filename);
+int sys_wait (tid_t tid);
 
 void
 syscall_init (void) 
@@ -28,7 +31,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   int sys_n = *(int*)esp;  //store system call number
   unsigned int *argument[5];
   
-  esp = esp + 1; //increase stack pointer
+  esp = esp + 1; //스택 값 증가
   check_address(esp);
 
   switch(sys_n)
@@ -45,8 +48,23 @@ syscall_handler (struct intr_frame *f UNUSED)
           }
           break;
       case SYS_EXEC:
+          {
+            get_argument(esp, argument, 1);
 
+            int exit_status = (int)*(argument[0]);
+
+            sys_exit(exit_status);
+          }
+          break;
       case SYS_WAIT:
+          {
+            get_argument(esp, argument, 1);
+
+            int tid = (int)*(argument[0]);
+            
+            f->eax = sys_wait(tid);
+          }
+          break;
 
       case SYS_CREATE:
           {
@@ -57,6 +75,7 @@ syscall_handler (struct intr_frame *f UNUSED)
             
             f->eax = sys_create(filename, initial_size);
           }
+          break;
 
       case SYS_REMOVE:
           {
@@ -66,8 +85,9 @@ syscall_handler (struct intr_frame *f UNUSED)
 
             f->eax = sys_remove(filename);
           }
+          break;
 
-      case SYS_OPEN:
+      /*case SYS_OPEN:
 
       case SYS_FILESIZE:
 
@@ -81,7 +101,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
       case SYS_TELL:
 
-      case SYS_CLOSE:
+      case SYS_CLOSE:*/
   }
 
   printf ("system call!\n");
@@ -122,7 +142,7 @@ sys_exit (int status)
   //exit thread
   struct thread *thread_cur = thread_current();
   printf ("%s : exit(%d)n", thread_cur->name, status);
-  
+  thread_cur->exit_status = status;
   thread_exit();
 }
 
@@ -131,9 +151,9 @@ sys_create (const char *file, unsigned int initial_size)
 {
   check_address((void*)file);  //if argument is pointer
 
-  bool result = filesys_remove(file);
+  bool is_success = filesys_remove(file);
 
-  return result;
+  return is_success;
 }
 
 bool
@@ -141,7 +161,34 @@ sys_remove (const char *file)
 {
   check_address((void*)file);  //if argument is pointer
   
-  bool result = filesys_remove(file);
+  bool is_success = filesys_remove(file);
 
-  return result;
+  return is_success;
+}
+
+tid_t
+sys_exec (char *process_name)
+{
+  tid_t exec_process_tid = process_execute(process_name);
+  struct thread *exec_process_descriptor = get_child_process(exec_process_tid);
+
+  if (exec_process_descriptor)
+  {
+    sema_down(&exec_process_descript->load_sema);
+
+    if (exec_process_descriptor->is_load)
+    {
+      return exec_process_tid;
+    }
+    else
+    {
+      return -1;
+    }
+  }
+}
+
+int
+sys_waiti (tid_t tid)
+{
+  return process_wait(tid);
 }

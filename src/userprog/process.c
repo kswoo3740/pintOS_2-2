@@ -126,17 +126,16 @@ start_process (void *file_name_)
   palloc_free_page (file_name);
 
   if (!success)
-      thread_exit();
-  /*if (success)
-  {
-    thread_current()->is_load = 1;  //flag가 제대로 로드 되었음
-    sema_up(&thread_current()->load_sema); //부모 프로세스를 깨운다
-  }
-  else
   {
     sema_up(&thread_current()->load_sema); //부모 프로스세를깨운다
-    thread_exit ();
-  }*/
+    thread_exit();
+  }
+  else 
+  {
+    thread_current()->is_load = 1;  
+    sema_up(&thread_current()->load_sema); //부모 프로세스를 깨운다
+  
+  }
 
   argument_stack (parse, argc, &if_.esp);
 
@@ -156,6 +155,33 @@ start_process (void *file_name_)
   NOT_REACHED ();
 }
 
+struct thread*
+get_child_process (int pid)
+{
+  struct thread *cur = thread_current();
+  struct thread *child = NULL;
+  struct list_elem *elem;
+
+  for (elem = list_begin(&cur->child_list); elem != list_end(&cur->child_list); elem = list_next(elem))
+  {
+    struct thread *node = list_entry(elem, struct thread, child_elem);
+    if (node->tid == pid)
+    {
+      child = node;
+      break;
+    }
+  }
+
+  return child;
+}
+
+void
+remove_child_process(struct thread *child)
+{
+  list_remove(&child->child_elem);  //자식을 리스트에서 제거
+  palloc_free_page(child);
+}
+
 /* Waits for thread TID to die and returns its exit status.  If
    it was terminated by the kernel (i.e. killed due to an
    exception), returns -1.  If TID is invalid or if it was not a
@@ -168,7 +194,20 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  struct thread* child = get_child_process(child_tid);
+
+  if (child)
+  {
+    sema_down(&child->exit_sema); //부모 프로세스를 막기 위해
+
+    int exit_status = child->exit_status;
+    remove_child_process(child);
+    return exit_status;
+  }
+  else
+  {
+    return -1;
+  }
 }
 
 /* Free the current process's resources. */

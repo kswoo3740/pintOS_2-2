@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <threads/synch.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -89,6 +90,17 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
+
+    int is_load;  //프로세스가 성공적으로 생성되었는지
+    int is_exit;  //프로세스가 성공적으로 종료되었는지
+
+    struct semaphore exit_sema;  //프로세스 종료 세마포어
+    struct semaphore load_sema;  //프로세스 로드 세마포어
+
+    struct list child_list;  //자식프로세스 리스트
+    struct list_elem child_elem;  //자식 엘리멘트 리스트
+
+    struct thread *parent_thread;  //부모를 가르키는 포인터
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
