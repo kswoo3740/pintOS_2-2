@@ -9,7 +9,7 @@
 static void syscall_handler (struct intr_frame *);
 
 void check_address(void *addr);
-void get_argument(unsigned int *esp, unsigned int *arg, int argc);
+void get_argument(unsigned int *esp, unsigned int *arg[5], int argc);
 
 void sys_halt (void);
 void sys_exit (int status);
@@ -32,7 +32,6 @@ syscall_handler (struct intr_frame *f UNUSED)
   int sys_n = *(int*)esp;  //store system call number
   unsigned int *argument[5];
   
-  printf("system call!!!!!\n");
   esp = esp + 1; //스택 값 증가
   check_address(esp);
   switch(sys_n)
@@ -117,7 +116,7 @@ check_address (void *addr)
 }
 
 void
-get_argument (unsigned int *esp, unsigned int *arg, int argc)
+get_argument (unsigned int *esp, unsigned int *arg[5], int argc)
 {
   int i;
   for (i = 0; i < argc; i++)

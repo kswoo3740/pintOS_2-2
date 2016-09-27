@@ -41,7 +41,6 @@ argument_stack (char **parse, int argc, void **esp)
     {
       *esp -= 1;
       **(char**)esp = parse[i][j];
-      printf("parsed %c\n",parse[i][j]);
     }
     argv_addr_base[i] = (unsigned int)(*esp);
   } 
@@ -86,8 +85,6 @@ process_execute (const char *file_name)
   if (!thread_name)
     return TID_ERROR;
 
-  printf("process execute : %s\n", file_name);
-
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, file_name);
   if (tid == TID_ERROR)
@@ -115,14 +112,11 @@ start_process (void *file_name_)
 
   strlcpy(file_name, file_name_, PGSIZE);
 
-  printf("%s\n", file_name);
   for (parse_cur = strtok_r(file_name, " ", &strtok_ptr); parse_cur != NULL; parse_cur = strtok_r(NULL, " ", &strtok_ptr))
   {
-    printf("parse_cur : %s\n", parse_cur);
     parse = (char**) realloc (parse, sizeof(char*)*(argc + 1));
     parse[argc] = (char*) malloc (sizeof(char) * strlen(parse_cur));
     strlcpy(parse[argc], parse_cur, sizeof(char) * (strlen(parse_cur) + 1));
-    printf("parse[%d] = %s\n", argc, parse[argc]);
     argc++; 
   }
 
@@ -135,11 +129,8 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (cmd_file_name, &if_.eip, &if_.esp);
 
-  printf("uzip\n");
   /* If load failed, quit. */
-  printf("filename = %s\n", file_name);
   palloc_free_page (file_name);
-  printf("joontak\n");
 
   if (!success)
   {
@@ -170,9 +161,7 @@ start_process (void *file_name_)
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
-  printf("bye\n");
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
-  printf("hi\n");
   NOT_REACHED ();
 }
 

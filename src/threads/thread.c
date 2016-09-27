@@ -298,7 +298,6 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
-    printf("thread exit\n");
   ASSERT (!intr_context ());
 #ifdef USERPROG
   process_exit ();
