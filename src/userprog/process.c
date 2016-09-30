@@ -18,11 +18,12 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "syscall.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 void argument_stack(char **parse, int argc, void **esp);
-void remove_child_process(struct thread *child);
+void remove_child_process (struct thread *child);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -50,28 +51,30 @@ argument_stack (char **parse, int argc, void **esp)
   *esp -= 4;
   memset(*esp, 0, sizeof(unsigned int));
 
-  for (i = argc - 1; i >= 0; i--)
+  for (i = argc - 1; i >= 0; i--)  //삽입 된 문자열의 주소값 저장
   {
      *esp -= 4;
      *(unsigned*)(*esp) = argv_addr_base[i];
   }
 
   *esp -= 4;
-  *(unsigned int*)(*esp) = (unsigned int)(*esp) + 4;
+  *(unsigned int*)(*esp) = (unsigned int)(*esp) + 4; //argv의 주소값 저장
 
   *esp -= 4;
-  *(unsigned int*)(*esp) = (unsigned int)argc;
+  *(unsigned int*)(*esp) = (unsigned int)argc;  //argc값 저장
 
   *esp -= 4;
-  memset(*esp, 0, sizeof(unsigned int));
+  memset(*esp, 0, sizeof(unsigned int));  //fake address값 저장
 }
 
 tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
+  char fn_sec_copy[256];  //strtok_r 사용 시 내용이 변할 수 있으므로 추가로 하나 더 복사
   char *strtok_ptr;
   tid_t tid;
+
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -80,13 +83,14 @@ process_execute (const char *file_name)
     return TID_ERROR;
 
   strlcpy (fn_copy, file_name, PGSIZE);
+  strlcpy (fn_sec_copy, file_name, PGSIZE);
   
-  char *thread_name = strtok_r(fn_copy, " ", &strtok_ptr);
+  char *thread_name = strtok_r(fn_sec_copy, " ", &strtok_ptr);
   if (!thread_name)
     return TID_ERROR;
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (thread_name, PRI_DEFAULT, start_process, file_name);
+  tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -175,7 +179,7 @@ get_child_process (int pid)
   for (elem = list_begin(&cur->child_list); elem != list_end(&cur->child_list); elem = list_next(elem))
   {
     struct thread *node = list_entry(elem, struct thread, child_elem);
-    if (node->tid == pid)
+    if (node->tid == pid)  //해당 child를 찾았을 경우
     {
       child = node;
       break;
@@ -190,6 +194,31 @@ remove_child_process(struct thread *child)
 {
   list_remove(&child->child_elem);  //자식을 리스트에서 제거
   palloc_free_page(child);
+}
+
+int
+process_add_file (struct file *file_name)
+{
+  struct file **fd = thread_current()->file_desc_table;
+  int fd_next = thread_current()->file_desc_next;
+
+  fd[fd_next] = file_name;  //파일 디스크립터에 파일 삽입
+  thread_current()->file_desc_next += 1;  //파일 디스크립터의 비어있는 위치 변경
+
+  return fd_next;
+}
+
+struct file*
+process_get_file (int fd)
+{
+  return thread_current()->file_desc_table[fd]; //해당 파일 디스크립터의 파일 리턴
+}
+
+void
+process_close_file (int fd)
+{
+  file_close(thread_current()->file_desc_table[fd]);  //해당 파일 종료
+  thread_current()->file_desc_table[fd] = NULL;  //종료 된 파일이 있던 디스크립터 NULL로 변경
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -243,6 +272,15 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  int i;
+  for (i = 2; i < cur->file_desc_next; i++)  //프로세스에서 열려있는 stdin, stdout을 제외한 파일 제거
+  {
+    process_close_file(i);
+  }
+  palloc_free_page(cur->file_desc_table); //file descriptor의 메모리 제거
+  file_close(cur->run_file);
+  printf("process exiting...!!!\n");
 }
 
 /* Sets up the CPU for running user code in the current
@@ -351,12 +389,18 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
+  lock_acquire(&filesys_lock);  //lock을 걸어줌
   file = filesys_open (file_name);
   if (file == NULL) 
     {
+      lock_release(&filesys_lock);
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
+
+  t->run_file = file;
+  file_deny_write(file);  //write deny
+  lock_release(&filesys_lock);  //lock을 풀어줌
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr

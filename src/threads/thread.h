@@ -91,6 +91,13 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+        /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+#ifdef USERPROG
+    /* Owned by userprog/process.c. */
+    uint32_t *pagedir;                  /* Page directory. */
+
     int is_load;  //프로세스가 성공적으로 생성되었는지
     int is_exit;  //프로세스가 성공적으로 종료되었는지
     int exit_status; //프로세스의 종료 상태
@@ -103,12 +110,10 @@ struct thread
 
     struct thread *parent_thread;  //부모를 가르키는 포인터
 
-    /* Shared between thread.c and synch.c. */
-    struct list_elem elem;              /* List element. */
+    struct file **file_desc_table;
+    int file_desc_next;
+    struct file *run_file;
 
-#ifdef USERPROG
-    /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                  /* Page directory. */
 #endif
 
     /* Owned by thread.c. */

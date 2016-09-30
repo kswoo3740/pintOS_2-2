@@ -216,6 +216,10 @@ thread_create (const char *name, int priority,
 
   list_push_back(&t->parent_thread->child_list, &t->child_elem);
 
+  /*initialize file descriptor table*/
+  t->file_desc_table = palloc_get_page(0);
+  t->file_desc_next = 2;
+
   /* Add to run queue. */
   thread_unblock (t);
 
