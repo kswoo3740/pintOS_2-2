@@ -140,7 +140,6 @@ syscall_handler (struct intr_frame *f UNUSED)
             int fd = argument[0];
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
-            printf("esp : %x, fd : %d, buffer : %x, size : %d\n", esp, fd, buffer, size);
 
             f->eax = write(fd, buffer, size);
           }
@@ -187,7 +186,6 @@ check_address (void *addr)
   //check address is in user address range
   if ((unsigned int)addr <= 0x8048000 || (unsigned int)addr >= 0xc0000000)
       exit(-1);
-  printf("checking address!!!!!!\n");
 }
 
 void
@@ -341,9 +339,7 @@ read (int fd, void *buffer, unsigned size)
 int
 write (int fd, void *buffer, unsigned size)
 {
-    printf("write before check\n");
   check_address(buffer);
-  printf("write after check\n");
 
   lock_acquire(&filesys_lock);  //lock을 걸어줌
   

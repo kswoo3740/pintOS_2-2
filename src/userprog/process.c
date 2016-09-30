@@ -279,8 +279,8 @@ process_exit (void)
     process_close_file(i);
   }
   palloc_free_page(cur->file_desc_table); //file descriptor의 메모리 제거
+
   file_close(cur->run_file);
-  printf("process exiting...!!!\n");
 }
 
 /* Sets up the CPU for running user code in the current
