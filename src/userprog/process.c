@@ -36,7 +36,8 @@ argument_stack (char **parse, int argc, void **esp)
 {
   int i, j;
   unsigned int argv_addr_base[argc];
-  for (i = argc - 1; i >= 0; i--)
+
+  for (i = argc - 1; i >= 0; i--)  //store character data in stack
   {
     for (j = strlen(parse[i]); j >= 0; j--)
     {
@@ -149,7 +150,7 @@ start_process (void *file_name_)
   }
 
   argument_stack (parse, argc, &if_.esp);
-  hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  //hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
   argc--;
   while(argc >= 0)
@@ -255,6 +256,7 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  int i;
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -273,14 +275,14 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
-  int i;
   for (i = 2; i < cur->file_desc_next; i++)  //프로세스에서 열려있는 stdin, stdout을 제외한 파일 제거
   {
     process_close_file(i);
   }
   palloc_free_page(cur->file_desc_table); //file descriptor의 메모리 제거
-
+  //printf("before exit!!!!!!\n");
   file_close(cur->run_file);
+  //printf("process exiting...!!!\n");
 }
 
 /* Sets up the CPU for running user code in the current
@@ -485,7 +487,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  //file_close (file);
   return success;
 }
 

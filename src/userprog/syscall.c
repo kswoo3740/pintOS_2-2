@@ -61,6 +61,7 @@ syscall_handler (struct intr_frame *f UNUSED)
             exit(status);
           }
           break;
+
       case SYS_EXEC:
           {
             get_argument(esp, argument, 1);
@@ -70,6 +71,7 @@ syscall_handler (struct intr_frame *f UNUSED)
             f->eax = exec(exec_filename);
           }
           break;
+
       case SYS_WAIT:
           {
             get_argument(esp, argument, 1);
@@ -105,9 +107,9 @@ syscall_handler (struct intr_frame *f UNUSED)
           {
             get_argument(esp, argument, 1);
           
-            int fd = argument[0];
-          
-            f->eax = file_size(fd);
+            char *filename = (char*)argument[0];
+
+            f->eax = open(filename);
           }
           break;
 
@@ -115,9 +117,9 @@ syscall_handler (struct intr_frame *f UNUSED)
           {
             get_argument(esp, argument, 1);
 
-            char *file_name = (char*)argument[0];
-
-            f->eax = open(file_name);
+            int fd = argument[0];
+          
+            f->eax = file_size(fd);
           }
           break;
 
@@ -125,6 +127,7 @@ syscall_handler (struct intr_frame *f UNUSED)
           {
             get_argument(esp, argument, 3);
 
+            //printf("read!!\n");
             int fd = argument[0];
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
@@ -140,6 +143,7 @@ syscall_handler (struct intr_frame *f UNUSED)
             int fd = argument[0];
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
+            //printf("esp : %x, fd : %d, buffer : %x, size : %d\n", esp, fd, buffer, size);
 
             f->eax = write(fd, buffer, size);
           }
@@ -148,6 +152,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_SEEK:
           {
             get_argument(esp, argument, 2);
+            //printf("seek!!!\n");
 
             int fd = argument[0];
             unsigned int position = (unsigned int)argument[1];
@@ -159,6 +164,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_TELL:
           {
             get_argument(esp, argument, 1);
+            //printf("tell!!!\n");
 
             int fd = argument[0];
 
@@ -169,6 +175,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_CLOSE:
           {
             get_argument(esp, argument, 1);
+            //printf("close!!!\n");
 
             int fd = argument[0];
 
@@ -177,7 +184,7 @@ syscall_handler (struct intr_frame *f UNUSED)
           break;
   }
 
-  thread_exit ();
+  //thread_exit ();
 }
 
 void
@@ -186,6 +193,7 @@ check_address (void *addr)
   //check address is in user address range
   if ((unsigned int)addr <= 0x8048000 || (unsigned int)addr >= 0xc0000000)
       exit(-1);
+  //printf("checking address!!!!!!\n");
 }
 
 void
@@ -260,6 +268,10 @@ exec (char *process_name)
           return -1;
         }
     }
+  else
+  {
+    return -1;
+  }
 }
 
 int
@@ -309,13 +321,14 @@ read (int fd, void *buffer, unsigned size)
 {
   check_address(buffer);
   lock_acquire(&filesys_lock);  //lock을 걸어줌
-  char *read_buffer = (char*)buffer;
+
   if (fd == 0)  //stdin
   {
     unsigned int i;
+    
     for (i = 0; i < size; i++)
     {
-      read_buffer[i] = input_getc();
+      ((char*)buffer)[i] = input_getc();
     }
 
     lock_release(&filesys_lock);  //lock을 풀어줌
@@ -339,15 +352,16 @@ read (int fd, void *buffer, unsigned size)
 int
 write (int fd, void *buffer, unsigned size)
 {
+    //printf("write before check\n");
   check_address(buffer);
+  //printf("write after check\n");
 
   lock_acquire(&filesys_lock);  //lock을 걸어줌
   
-  char* write_buffer = (char*)buffer;
 
   if (fd == 1)
   {
-    putbuf(write_buffer, size);
+    putbuf(buffer, size);
     lock_release(&filesys_lock);  //lock을 풀어줌
 
     return size;
@@ -360,7 +374,7 @@ write (int fd, void *buffer, unsigned size)
     return -1;
   }
 
-  int file_size = file_write(file_name, write_buffer, size);
+  int file_size = file_write(file_name, buffer, size);
   lock_release(&filesys_lock);  //lock을 풀어줌 
 
   return file_size;
