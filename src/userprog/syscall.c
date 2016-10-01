@@ -220,7 +220,7 @@ exit (int status)
 {
   //exit thread
   struct thread *thread_cur = thread_current();  //현재 thread 를 받아옴
-  printf ("%s : exit(%d)\n", thread_cur->name, status);  //종료상태 출력
+  printf ("%s: exit(%d)\n", thread_cur->name, status);  //종료상태 출력
   thread_cur->exit_status = status;  //종료상태 저장
   thread_exit();
 }
