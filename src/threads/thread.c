@@ -23,6 +23,8 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+/* List of processes in sleep state */
+static struct list sleep_list;
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -36,6 +38,9 @@ static struct thread *initial_thread;
 
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
+
+/* To check awake time */
+static int64_t next_tick_to_awake = INT64_MAX;
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -90,6 +95,7 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
   lock_init (&tid_lock);
   list_init (&ready_list);
+  list_init (&sleep_list);
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
@@ -113,6 +119,74 @@ thread_start (void)
 
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
+}
+
+void
+thread_sleep (int64_t ticks)
+{
+  struct thread *cur = thread_current();
+  if (cur != idle_thread)
+  {
+    enum intr_level cur_level; //Use to disable or enable interrupt
+    cur_level = intr_disable();  //Disable interrupt
+
+    cur->wake_up_tick = ticks;  //Set sleep tick
+    list_push_back(&sleep_list, &cur->elem);  //Push back to sleep list
+    update_next_tick_to_awake();  //Update next awake tick
+
+    thread_block();  //Blocking thread
+
+    intr_set_level(cur_level);  //Enabling interrupt
+  }
+}
+
+void
+thread_awake (int64_t ticks)
+{
+  struct list_elem *e;
+
+  if (list_size(&sleep_list) > 0)
+  {
+    for (e = list_begin(&sleep_list); e != list_end(&sleep_list);)
+    {
+      struct thread *entry = list_entry(e, struct thread, elem);
+      e = list_next(e);
+
+      if (entry->wake_up_tick <=ticks)
+      {
+        list_remove(&entry->elem);
+        thread_unblock(entry);
+      }
+      else
+      {
+        update_next_tick_to_awake();
+      }
+    }
+  }
+}
+
+void
+update_next_tick_to_awake(void)  
+{
+  int64_t min = INT64_MAX;  //To save min value of next tick in sleep list
+  struct list_elem *e;
+  for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e))  //Checking all of element of sleep list min awake tick
+  { 
+    struct thread *entry = list_entry(e, struct thread, elem);
+
+    if (entry->wake_up_tick < min)
+    {
+      min = entry->wake_up_tick;
+    }
+  }
+
+  next_tick_to_awake = min;  //Update next tick to awake
+}
+
+int64_t
+get_next_tick_to_awake (void)
+{
+  return next_tick_to_awake;
 }
 
 /* Called by the timer interrupt handler at each timer tick.

@@ -97,6 +97,7 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+#endif
 
     int is_load;  //프로세스가 성공적으로 생성되었는지
     int is_exit;  //프로세스가 성공적으로 종료되었는지
@@ -114,7 +115,7 @@ struct thread
     int file_desc_next;
     struct file *run_file;
 
-#endif
+    int64_t wake_up_tick;  //To store wake up ticks
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
@@ -155,5 +156,10 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+void thread_sleep (int64_t ticks);
+void thread_awkae (int64_t ticks);
+void update_next_tick_to_awake (void);
+int64_t get_next_tick_to_awake (void);
 
 #endif /* threads/thread.h */
