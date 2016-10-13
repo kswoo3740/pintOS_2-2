@@ -173,6 +173,22 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
 
+  if (thread_mlfqs)
+  {
+    mlfqs_increment(); //Increase recent cpu value
+
+    if (ticks % TIMER_FREQ == 0) // Per 1second
+    {
+      mlfqs_load_avg();
+      mlfqs_recalc();  //Recalculate priority and recent cpu
+    }
+
+    if (ticks % 4 == 0)
+    {
+      mlfqs_priority(thread_current());  //Recalculate priority
+    }
+  }
+
   if (ticks >= get_next_tick_to_awake())  //if ticks are big enough to wake next process than wake it up
   {
    thread_awake(ticks); 

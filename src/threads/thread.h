@@ -117,6 +117,9 @@ struct thread
 
     int64_t wake_up_tick;  //To store wake up ticks
 
+    int nice;  //For MLFQS
+    int recent_cpu;
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
@@ -142,6 +145,7 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
+void thread_awake (int64_t ticks);
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 
@@ -164,5 +168,12 @@ int64_t get_next_tick_to_awake (void);
 
 void test_max_priority (void);
 bool cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
+void mlfqs_priority (struct thread *t);
+void mlfqs_recent_cpu (struct thread *t);
+void mlfqs_load_avg (void);
+void mlfqs_increment (void);
+void mlfqs_recalc (void);
+
 
 #endif /* threads/thread.h */
