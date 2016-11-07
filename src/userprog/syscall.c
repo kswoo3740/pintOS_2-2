@@ -10,10 +10,12 @@
 #include "userprog/process.h"
 #include "threads/synch.h"
 #include "threads/malloc.h"
+#include "vm/page.h"
+#include "threads/vaddr.h"
 
 static void syscall_handler (struct intr_frame *);
 
-void check_address(void *addr);
+struct vm_entry* check_address(void *addr, void *esp UNUSED);
 void get_argument(unsigned int *esp, int *arg, int argc);
 
 void halt (void);
@@ -41,12 +43,12 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   unsigned int *esp = (unsigned int*)(f->esp);  //stack pointer
-  check_address(esp);
+  check_address(esp, esp);
   int sys_n = *(int*)esp;  //store system call number
   int argument[4];
   
   esp++; //스택 값 증가
-  check_address(esp);
+  check_address(esp, esp);
   switch(sys_n)
   {
       //get_argument를 통해 각 함수에 필요한 인자의 갯수 리턴 받음
@@ -67,6 +69,7 @@ syscall_handler (struct intr_frame *f UNUSED)
             get_argument(esp, argument, 1);
 
             char *exec_filename = (char*)argument[0];
+            check_valid_string (exec_filename, esp);
 
             f->eax = exec(exec_filename);
           }
@@ -88,6 +91,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
             char *filename = (char*)argument[0];
             unsigned int initial_size = (unsigned int)argument[1];
+
+            check_valid_string (filename, esp);
             
             f->eax = create(filename, initial_size);
           }
@@ -99,6 +104,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
             char *filename = (char*)argument[0];
 
+            check_valid_string (filename, esp);
+
             f->eax = remove(filename);
           }
           break;
@@ -108,6 +115,8 @@ syscall_handler (struct intr_frame *f UNUSED)
             get_argument(esp, argument, 1);
           
             char *filename = (char*)argument[0];
+
+            check_valid_string (filename, esp);
 
             f->eax = open(filename);
           }
@@ -127,10 +136,11 @@ syscall_handler (struct intr_frame *f UNUSED)
           {
             get_argument(esp, argument, 3);
 
-            //printf("read!!\n");
             int fd = argument[0];
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
+
+            check_valid_buffer (buffer, size, esp, false);
 
             f->eax = read(fd, buffer, size);
           }
@@ -143,7 +153,8 @@ syscall_handler (struct intr_frame *f UNUSED)
             int fd = argument[0];
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
-            //printf("esp : %x, fd : %d, buffer : %x, size : %d\n", esp, fd, buffer, size);
+
+            check_valid_buffer (buffer, size, esp, true);
 
             f->eax = write(fd, buffer, size);
           }
@@ -152,7 +163,6 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_SEEK:
           {
             get_argument(esp, argument, 2);
-            //printf("seek!!!\n");
 
             int fd = argument[0];
             unsigned int position = (unsigned int)argument[1];
@@ -164,7 +174,6 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_TELL:
           {
             get_argument(esp, argument, 1);
-            //printf("tell!!!\n");
 
             int fd = argument[0];
 
@@ -175,7 +184,6 @@ syscall_handler (struct intr_frame *f UNUSED)
       case SYS_CLOSE:
           {
             get_argument(esp, argument, 1);
-            //printf("close!!!\n");
 
             int fd = argument[0];
 
@@ -187,13 +195,44 @@ syscall_handler (struct intr_frame *f UNUSED)
   //thread_exit ();
 }
 
-void
-check_address (void *addr)
+struct vm_entry*
+check_address (void *addr, void *esp UNUSED)
 { 
   //check address is in user address range
   if ((unsigned int)addr <= 0x8048000 || (unsigned int)addr >= 0xc0000000)
       exit(-1);
-  //printf("checking address!!!!!!\n");
+
+  return find_vme(addr);
+}
+
+void
+check_valid_buffer (void *buffer, unsigned int size, void *esp, bool to_write)
+{
+  unsigned int i;
+  struct vm_entry *entry;
+  void *addr = buffer;
+
+  for (i = 0; i < size; i++) 
+  {
+    entry = check_address (buffer, esp);
+    if (to_write && !entry->writable && entry != NULL)  //check entry is null and writable
+    {
+      exit(-1);
+    }
+    addr++;
+  }
+}
+
+void
+check_valid_string (const void *str, void *esp)
+{
+  void *addr = (void*)str;  
+  while (*(char*)addr != '\0')
+  {
+    check_address (addr, esp);
+    addr++;
+  }
+  check_address (addr, esp);
 }
 
 void
@@ -202,7 +241,7 @@ get_argument (unsigned int *esp, int *arg, int argc)
   int i;
   for (i = 0; i < argc; i++)
   {
-    check_address((void*)esp);
+    check_address((void*)esp, (void*)esp);
     arg[i] = (int)*(esp);
     esp++;  //insert esp address to kernel stack
   }
@@ -228,8 +267,6 @@ exit (int status)
 bool
 create (const char *file, unsigned int initial_size)
 {
-  check_address((void*)file);  //if argument is pointer
-
   lock_acquire(&filesys_lock);  //lock을 걸 어줌
   bool is_success = filesys_create(file, initial_size);  //create 성공 여부
   lock_release(&filesys_lock);  //lock을 풀어줌
@@ -240,8 +277,6 @@ create (const char *file, unsigned int initial_size)
 bool
 remove (const char *file)
 {
-  check_address((void*)file);  //if argument is pointer
-  
   lock_acquire(&filesys_lock);  //lock을 걸 어줌
   bool is_success = filesys_remove(file);  //remove성공여부
   lock_release(&filesys_lock);  //lock을 풀어줌
@@ -283,8 +318,6 @@ wait (tid_t tid)
 int
 open (const char *file_name)
 {
-  check_address((void*)file_name);
-
   lock_acquire(&filesys_lock);  //lock을 걸어줌
   struct file *open_file_name = filesys_open(file_name);  //open할 파일
 
@@ -319,7 +352,6 @@ file_size (int fd)
 int
 read (int fd, void *buffer, unsigned size)
 {
-  check_address(buffer);
   lock_acquire(&filesys_lock);  //lock을 걸어줌
 
   if (fd == 0)  //stdin
@@ -352,10 +384,6 @@ read (int fd, void *buffer, unsigned size)
 int
 write (int fd, void *buffer, unsigned size)
 {
-    //printf("write before check\n");
-  check_address(buffer);
-  //printf("write after check\n");
-
   lock_acquire(&filesys_lock);  //lock을 걸어줌
   
 
