@@ -136,13 +136,17 @@ syscall_handler (struct intr_frame *f UNUSED)
 
       case SYS_READ:
           {
+            printf("hello\n");
             get_argument(esp, argument, 3);
+            printf("hello\n");
 
             int fd = argument[0];
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
+            printf("hello\n");
 
             check_valid_buffer (buffer, size, esp, false);
+            printf("hello\n");
 
             f->eax = read(fd, buffer, size);
           }
@@ -205,7 +209,7 @@ check_address (void *addr, void *esp UNUSED)
       exit(-1);
   
   struct vm_entry *entry = find_vme (addr);
-
+  if (entry == NULL) exit(-1);
   if (entry) 
     handle_mm_fault (entry);  
 
@@ -234,13 +238,13 @@ void
 check_valid_string (const void *str, void *esp)
 {
   void *addr = (void*)str;  
-
+/*
   while (*(char*)addr != '\0')
   {
     check_address (addr, esp);
     addr++;
   }
-
+*/
   check_address (addr, esp);
 }
 
@@ -454,7 +458,7 @@ tell (int fd)
 void
 close (int fd)
 {
-  lock_acquire(&filesys_lock);  //lock을 걸어줌
+  //lock_acquire(&filesys_lock);  //lock을 걸어줌
   process_close_file(fd);
-  lock_release(&filesys_lock);  //lock을 풀어줌
+  //lock_release(&filesys_lock);  //lock을 풀어줌
 }

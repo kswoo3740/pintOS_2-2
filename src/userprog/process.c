@@ -217,12 +217,14 @@ process_add_file (struct file *file_name)
 struct file*
 process_get_file (int fd)
 {
+  if (fd <= 1 || thread_current()->file_desc_next <= fd) return NULL;
   return thread_current()->file_desc_table[fd]; //해당 파일 디스크립터의 파일 리턴
 }
 
 void
 process_close_file (int fd)
 {
+  if (fd <= 1 || thread_current()->file_desc_next <= fd) return;
   file_close(thread_current()->file_desc_table[fd]);  //해당 파일 종료
   thread_current()->file_desc_table[fd] = NULL;  //종료 된 파일이 있던 디스크립터 NULL로 변경
 }
