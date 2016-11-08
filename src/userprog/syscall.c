@@ -31,6 +31,8 @@ int open(const char* file);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+void check_valid_buffer (void *buffer, unsigned int size, void *esp, bool to_write);
+void check_valid_string (const void *str, void *esp);
 
 void
 syscall_init (void) 
@@ -68,10 +70,10 @@ syscall_handler (struct intr_frame *f UNUSED)
           {
             get_argument(esp, argument, 1);
 
-            char *exec_filename = (char*)argument[0];
-            check_valid_string (exec_filename, esp);
+            char *filename = (char*)argument[0];
+            check_valid_string (filename, esp);
 
-            f->eax = exec(exec_filename);
+            f->eax = exec(filename);
           }
           break;
 
@@ -199,10 +201,15 @@ struct vm_entry*
 check_address (void *addr, void *esp UNUSED)
 { 
   //check address is in user address range
-  if ((unsigned int)addr <= 0x8048000 || (unsigned int)addr >= 0xc0000000)
+  if ((unsigned int)addr <= 0x8048000 || (unsigned int)addr >= 0xc0000000) 
       exit(-1);
+  
+  struct vm_entry *entry = find_vme (addr);
 
-  return find_vme(addr);
+  if (entry) 
+    handle_mm_fault (entry);  
+
+  return entry;
 }
 
 void
@@ -227,11 +234,13 @@ void
 check_valid_string (const void *str, void *esp)
 {
   void *addr = (void*)str;  
+
   while (*(char*)addr != '\0')
   {
     check_address (addr, esp);
     addr++;
   }
+
   check_address (addr, esp);
 }
 

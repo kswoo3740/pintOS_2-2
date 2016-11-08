@@ -112,6 +112,8 @@ start_process (void *file_name_)
   char *parse_cur;
   char *strtok_ptr;
 
+  vm_init(&thread_current()->vm);  //Initailze vm
+
   file_name = palloc_get_page(0);
   if(file_name == NULL)
       return TID_ERROR;
@@ -591,6 +593,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
+      ofs += page_read_bytes;
       upage += PGSIZE;
     }
   return true;
@@ -651,17 +654,17 @@ install_page (void *upage, void *kpage, bool writable)
 }
 
 bool
-handle_mm_fault (struct vm_entry *entry)
+handle_mm_fault (struct vm_entry *vme)
 {
-  if (entry->is_loaded == true)
+  if (vme->is_loaded == true)
       return false;
 
   void *addr = palloc_get_page(PAL_USER);
 
-  switch (entry->type)
+  switch (vme->type)
   {
     case VM_BIN:
-      if (!load_file (addr, entry))
+      if (!load_file (addr, vme))
       {
         palloc_free_page (addr);
         return false;
@@ -669,7 +672,7 @@ handle_mm_fault (struct vm_entry *entry)
       break;
 
     case VM_FILE:
-      if (!load_file (addr, entry))
+      if (!load_file (addr, vme))
       {
         palloc_free_page (addr);
         return false;
@@ -677,20 +680,15 @@ handle_mm_fault (struct vm_entry *entry)
       break;
 
     case VM_ANON:
-      if (!load_file (addr, entry))
-      {
-        palloc_free_page(addr);
-        return false;
-      }
       break;
   }
   
-  if (install_page (entry->vaddr, addr, entry->writable))
+  if (!install_page (vme->vaddr, addr, vme->writable))
   {
-    palloc_free_page (addr);
+    palloc_free_page(addr);
     return false;
   }
-  entry->is_loaded = true;
+  vme->is_loaded = true;
 
   return true;
 }

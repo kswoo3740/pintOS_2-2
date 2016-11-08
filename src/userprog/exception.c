@@ -151,24 +151,21 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  bool is_loaded = false;
-
   if (not_present)  //find vm entry and check if it is loaded
   {
     struct vm_entry *entry = find_vme (fault_addr);
-    
     if (entry)
     {
       if (write && (entry->writable == 0))
         exit(-1);
-      
-      is_loaded = handle_mm_fault (entry);
-    }
 
-    if (is_loaded == false)
-        exit(-1);
+      if (!handle_mm_fault (entry))
+        exit(-1);  
+    }
+    //printf ("not exited!!!!\n\n");
   }
-  exit(-1);
+  else
+    exit(-1);  
   /*printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,
           not_present ? "not present" : "rights violation",
