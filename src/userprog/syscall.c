@@ -136,17 +136,13 @@ syscall_handler (struct intr_frame *f UNUSED)
 
       case SYS_READ:
           {
-            printf("hello\n");
             get_argument(esp, argument, 3);
-            printf("hello\n");
 
             int fd = argument[0];
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
-            printf("hello\n");
 
             check_valid_buffer (buffer, size, esp, false);
-            printf("hello\n");
 
             f->eax = read(fd, buffer, size);
           }
@@ -162,6 +158,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
             check_valid_buffer (buffer, size, esp, true);
 
+            
             f->eax = write(fd, buffer, size);
           }
           break;
