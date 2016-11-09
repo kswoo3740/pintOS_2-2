@@ -125,6 +125,9 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
 
     struct hash vm;
+
+    int mapid;
+    struct list mmap_list;
   };
 
 /* If false (default), use round-robin scheduler.

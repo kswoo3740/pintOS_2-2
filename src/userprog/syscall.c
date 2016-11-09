@@ -15,8 +15,6 @@
 
 static void syscall_handler (struct intr_frame *);
 
-struct vm_entry* check_address(void *addr, void *esp UNUSED);
-void get_argument(unsigned int *esp, int *arg, int argc);
 
 void halt (void);
 void exit (int status);
@@ -31,8 +29,16 @@ int open(const char* file);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+
+void get_argument(unsigned int *esp, int *arg, int argc);
+
+struct vm_entry* check_address(void *addr, void *esp UNUSED);
 void check_valid_buffer (void *buffer, unsigned int size, void *esp, bool to_write);
 void check_valid_string (const void *str, void *esp);
+
+int mmap (int fd, void *addr);
+void munmap (int mapping);
+void do_munmap (struct mmap_file *mmap_f);
 
 void
 syscall_init (void) 
@@ -142,7 +148,7 @@ syscall_handler (struct intr_frame *f UNUSED)
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
 
-            check_valid_buffer (buffer, size, esp, false);
+            check_valid_buffer (buffer, size, esp, true);
 
             f->eax = read(fd, buffer, size);
           }
@@ -156,9 +162,8 @@ syscall_handler (struct intr_frame *f UNUSED)
             void *buffer = (void*)argument[1];
             unsigned int size = (unsigned int)argument[2];
 
-            check_valid_buffer (buffer, size, esp, true);
+            check_valid_buffer (buffer, size, esp, false);
 
-            
             f->eax = write(fd, buffer, size);
           }
           break;
@@ -193,6 +198,27 @@ syscall_handler (struct intr_frame *f UNUSED)
             close(fd);
           }
           break;
+
+      case SYS_MMAP:
+          {
+            get_argument (esp, argument, 2);
+
+            int fd = (int)argument[0];
+            char *buffer = (char*)argument[1];
+
+            f->eax = mmap (fd, buffer);
+          }
+          break;
+
+      case SYS_MUNMAP:
+          {
+            get_argument (esp, argument, 1);
+
+            int mapping  = (int)argument[0];
+
+            munmap (mapping);
+          }
+          break;
   }
 
   //thread_exit ();
@@ -222,8 +248,8 @@ check_valid_buffer (void *buffer, unsigned int size, void *esp, bool to_write)
 
   for (i = 0; i < size; i++) 
   {
-    entry = check_address (buffer, esp);
-    if (to_write && !entry->writable && entry != NULL)  //check entry is null and writable
+    entry = check_address (addr, esp);
+    if (to_write && !entry->writable)  //check entry is null and writable
     {
       exit(-1);
     }
@@ -458,4 +484,140 @@ close (int fd)
   //lock_acquire(&filesys_lock);  //lock을 걸어줌
   process_close_file(fd);
   //lock_release(&filesys_lock);  //lock을 풀어줌
+}
+
+int
+mmap (int fd, void *addr)
+{
+  struct file *fp = process_get_file (fd);  //Get file pointer from fd
+
+  if (!fp)  //Check valid file pointer
+    return -1;
+
+  struct mmap_file *mmap_fp = (struct mmap_file*) malloc (sizeof(struct mmap_file));
+  
+  if (pg_ofs(addr) != 0)  //align mmap
+    return -1;
+
+  if (addr == 0)  //protect kernel memory
+    return -1;  
+
+  if (mmap_fp == NULL)  //Check valid allocate
+    return -1;
+
+  int mapid = thread_current()->mapid;
+  struct file *fp_reopen = file_reopen (fp);   //Reopen file pointer
+
+  thread_current()->mapid++;  
+
+  /*Initialize mmap_fp*/
+  mmap_fp->file = fp_reopen; 
+  mmap_fp->mapid = mapid;
+  list_init (&mmap_fp->vme_list);
+
+  int file_len = file_length (fp_reopen);
+
+  if (fp_reopen == NULL)
+    return -1;
+
+  size_t offset = 0;
+
+  while (file_len > 0)
+  {
+    int read_bytes = file_len;
+
+    if (file_len > PGSIZE)
+      read_bytes = PGSIZE;
+
+    int zero_bytes = PGSIZE - read_bytes;
+
+    if (find_vme (addr) != NULL)
+    {
+      munmap (mapid);
+      return -1;
+    }  
+
+    struct vm_entry *entry = (struct vm_entry*) malloc (sizeof(struct vm_entry));
+
+    if (!entry)
+    {
+      munmap (mapid);
+      return -1;
+    }
+
+    /*Initialize entry*/
+    entry->vaddr = addr;
+    entry->file = fp_reopen;
+    entry->offset = offset;
+    entry->read_bytes = read_bytes;
+    entry->zero_bytes = zero_bytes;
+    entry->type = VM_FILE;
+    entry->writable = true;
+    entry->is_loaded = false;
+
+    list_push_back (&mmap_fp->vme_list, &entry->mmap_elem);
+    insert_vme (&thread_current()->vm, entry);
+
+    /*Change values after mapping page*/
+    file_len -= read_bytes;
+    offset += read_bytes;
+    addr += PGSIZE;
+  }
+  
+  list_push_back (&thread_current()->mmap_list, &mmap_fp->elem);
+
+  return mapid;
+}
+
+void
+munmap (int mapping)
+{
+  struct list_elem *e;
+  
+  /*Find mapid which is equal with mapping or remove all if mapping == -1*/
+  for (e = list_begin(&thread_current()->mmap_list); e != list_end(&thread_current()->mmap_list); e = list_next(e))
+  {
+    struct mmap_file *mmap_fp = list_entry (e, struct mmap_file, elem);
+
+    if (mmap_fp->mapid == mapping || mapping == -1)
+    {
+      do_munmap (mmap_fp);
+
+      if (mmap_fp->file)
+      {
+        file_close (mmap_fp->file);
+      }
+
+      list_remove (&mmap_fp->elem);
+      //free (mmap_fp);
+    }  
+  }
+}
+
+void
+do_munmap (struct mmap_file *mmap_fp)
+{
+  struct list_elem *e;
+
+  for (e = list_begin(&mmap_fp->vme_list); e != list_end(&mmap_fp->vme_list); e = list_next(e))
+  {
+    struct vm_entry *entry = list_entry (e, struct vm_entry, mmap_elem);
+
+    if (entry != NULL && entry->is_loaded)
+    {
+      if (pagedir_is_dirty (thread_current()->pagedir, entry->vaddr))
+      {
+        lock_acquire (&filesys_lock);
+        file_write_at (entry->file, entry->vaddr, entry->read_bytes, entry->offset);
+        lock_release (&filesys_lock);
+      }
+
+      palloc_free_page (pagedir_get_page (thread_current()->pagedir, entry->vaddr));
+      pagedir_clear_page (thread_current()->pagedir, entry->vaddr);
+    }
+
+    list_remove (&entry->mmap_elem);
+
+    delete_vme (&thread_current()->vm, entry);
+  }
 }

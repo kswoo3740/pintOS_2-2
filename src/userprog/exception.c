@@ -164,7 +164,6 @@ page_fault (struct intr_frame *f)
     }
     else
         exit(-1);
-    //printf ("not exited!!!!\n\n");
   }
   else
     exit(-1);  

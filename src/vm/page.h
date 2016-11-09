@@ -29,6 +29,14 @@ struct vm_entry
   struct hash_elem elem;
 };
 
+struct mmap_file
+{
+  int mapid;
+  struct file *file;
+  struct list_elem elem;
+  struct list vme_list;
+};
+
 void vm_init (struct hash *vm);
 void vm_destroy (struct hash *vm);
 

@@ -114,6 +114,9 @@ start_process (void *file_name_)
 
   vm_init(&thread_current()->vm);  //Initailze vm
 
+  thread_current()->mapid = 0;
+  list_init(&thread_current()->mmap_list);
+
   file_name = palloc_get_page(0);
   if(file_name == NULL)
       return TID_ERROR;
@@ -217,14 +220,17 @@ process_add_file (struct file *file_name)
 struct file*
 process_get_file (int fd)
 {
-  if (fd <= 1 || thread_current()->file_desc_next <= fd) return NULL;
-  return thread_current()->file_desc_table[fd]; //해당 파일 디스크립터의 파일 리턴
+  if (fd <= 1 || thread_current()->file_desc_next <= fd)
+    return NULL;
+  else
+    return thread_current()->file_desc_table[fd]; //해당 파일 디스크립터의 파일 리턴
 }
 
 void
 process_close_file (int fd)
 {
-  if (fd <= 1 || thread_current()->file_desc_next <= fd) return;
+  if (fd <= 1 || thread_current()->file_desc_next <= fd)
+      return;
   file_close(thread_current()->file_desc_table[fd]);  //해당 파일 종료
   thread_current()->file_desc_table[fd] = NULL;  //종료 된 파일이 있던 디스크립터 NULL로 변경
 }
@@ -265,6 +271,7 @@ process_exit (void)
   uint32_t *pd;
   int i;
 
+  munmap(-1);  //Clear all mapped files
   vm_destroy (&cur->vm); //Remove vm entries
 
   /* Destroy the current process's page directory and switch back
