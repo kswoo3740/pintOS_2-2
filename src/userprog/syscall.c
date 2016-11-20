@@ -561,7 +561,7 @@ mmap (int fd, void *addr)
     entry->type = VM_FILE;
     entry->writable = true;
     entry->is_loaded = false;
-    printf("vm file!!\n");
+    //printf("vm file!!\n");
 
     list_push_back (&mmap_fp->vme_list, &entry->mmap_elem);
     insert_vme (&thread_current()->vm, entry);

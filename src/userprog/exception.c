@@ -154,7 +154,7 @@ page_fault (struct intr_frame *f)
   if (not_present)  //find vm entry and check if it is loaded
   {
     struct vm_entry *entry = find_vme (fault_addr);
-    printf ("fault addr = %x, f->eip = %x\n", fault_addr, f->eip);
+    //printf ("fault addr = %x, f->eip = %x\n", fault_addr, f->eip);
     if (entry)
     {
        // printf("hello1\n");

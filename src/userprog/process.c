@@ -274,6 +274,7 @@ process_exit (void)
   int i;
 
   munmap(-1);  //Clear all mapped files
+  free_all_pages (cur->tid);
   vm_destroy (&cur->vm); //Remove vm entries
 
   /* Destroy the current process's page directory and switch back

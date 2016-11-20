@@ -3,6 +3,7 @@
 
 #include "threads/palloc.h"
 #include "threads/synch.h"
+#include "threads/thread.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <list.h>
@@ -22,5 +23,6 @@ void __free_page (struct page *page);
 
 struct list_elem* get_next_lru_clock (void);
 void* try_to_free_pages (enum palloc_flags flags);
+void free_all_page (tid_t tid);
 
 #endif

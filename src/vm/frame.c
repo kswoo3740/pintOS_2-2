@@ -61,7 +61,7 @@ alloc_page (enum palloc_flags flags)
   page->thread = thread_current();
   page->vme = NULL;
   
-  printf ("page->kaddr  = %x\n", kaddr);
+  //printf ("page->kaddr  = %x\n", kaddr);
   add_page_to_lru_list (page);
 
   return page;
@@ -171,4 +171,19 @@ try_to_free_pages (enum palloc_flags flags)
   }
   
   return NULL;
+}
+
+void free_all_pages (tid_t tid) {
+  struct list_elem *elem, *tmp;
+  struct page *page;
+  for (elem = list_begin(&lru_list); elem != list_end (&lru_list);)
+  {
+    tmp = list_next (elem);
+    page = list_entry (elem, struct page, lru);
+    if (page->thread->tid == tid)
+    {
+      del_page_from_lru_list (page);
+    }
+    elem = tmp;
+  }
 }
