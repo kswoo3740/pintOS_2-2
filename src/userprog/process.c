@@ -20,6 +20,8 @@
 #include "threads/vaddr.h"
 #include "syscall.h"
 #include "vm/page.h"
+#include "vm/swap.h"
+#include "vm/frame.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -613,10 +615,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp) 
 {
-  uint8_t *kpage;
+  //uint8_t *kpage;
   bool success = false;
+  void *kaddr;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+  /*kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
@@ -624,21 +627,37 @@ setup_stack (void **esp)
         *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
-    }
+    }*/
 
   struct vm_entry *entry = (struct vm_entry*) malloc (sizeof(struct vm_entry));
 
   if (entry == NULL)
-      return false;
+      return success;
 
   entry->type = VM_ANON;
   entry->vaddr = ((uint8_t*)PHYS_BASE) - PGSIZE;
   entry->writable = true;
   entry->is_loaded = true;
   
+  struct page *page = alloc_page (PAL_USER | PAL_ZERO);
+
+  kaddr = page->kaddr;
+  page->vme = entry;
+
   if (insert_vme(&thread_current()->vm, entry) == false)
       return false;
 
+  success = install_page (((uint8_t*) PHYS_BASE) - PGSIZE, kaddr, true);
+  if (success)
+  {
+    *esp = PHYS_BASE;
+  }
+  else
+  {
+    free_page (page);
+    return success;
+  }
+  
   return success;
 }
 
@@ -668,33 +687,36 @@ handle_mm_fault (struct vm_entry *vme)
   if (vme->is_loaded == true)
       return false;
 
-  void *addr = palloc_get_page(PAL_USER);
+  struct page *page = alloc_page (PAL_USER);
+  page->vme = vme;
+  void *kaddr = page->kaddr;
 
   switch (vme->type)
   {
     case VM_BIN:
-      if (!load_file (addr, vme))
+      if (!load_file (kaddr, vme))
       {
-        palloc_free_page (addr);
+        free_page (kaddr);
         return false;
       }
       break;
 
     case VM_FILE:
-      if (!load_file (addr, vme))
+      if (!load_file (kaddr, vme))
       {
-        palloc_free_page (addr);
+        free_page (kaddr);
         return false;
       }
       break;
 
     case VM_ANON:
+      swap_in (vme->swap_slot, kaddr);
       break;
   }
   
-  if (!install_page (vme->vaddr, addr, vme->writable))
+  if (!install_page (vme->vaddr, kaddr, vme->writable))
   {
-    palloc_free_page(addr);
+    free_page(kaddr);
     return false;
   }
   vme->is_loaded = true;

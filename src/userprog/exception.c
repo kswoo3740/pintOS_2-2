@@ -154,18 +154,20 @@ page_fault (struct intr_frame *f)
   if (not_present)  //find vm entry and check if it is loaded
   {
     struct vm_entry *entry = find_vme (fault_addr);
+    printf ("fault addr = %x, f->eip = %x\n", fault_addr, f->eip);
     if (entry)
     {
+       // printf("hello1\n");
       if (write && (entry->writable == 0))
         exit(-1);
-
+       // printf("hello2\n");
       if (!handle_mm_fault (entry))
         exit(-1);  
     }
     else
         exit(-1);
   }
-  else
+  else{
     exit(-1);  
   /*printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,
@@ -173,5 +175,6 @@ page_fault (struct intr_frame *f)
           write ? "writing" : "reading",
           user ? "user" : "kernel");
   kill (f);*/
+  }
 }
 

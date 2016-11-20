@@ -37,6 +37,13 @@ struct mmap_file
   struct list vme_list;
 };
 
+struct page {
+  void *kaddr;
+  struct vm_entry *vme;
+  struct thread *thread;
+  struct list_elem lru;
+};
+
 void vm_init (struct hash *vm);
 void vm_destroy (struct hash *vm);
 

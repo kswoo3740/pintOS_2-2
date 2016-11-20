@@ -12,6 +12,9 @@
 #include "threads/malloc.h"
 #include "vm/page.h"
 #include "threads/vaddr.h"
+#include "vm/swap.h"
+#include "vm/frame.h"
+#include <string.h>
 
 static void syscall_handler (struct intr_frame *);
 
@@ -230,11 +233,14 @@ check_address (void *addr, void *esp UNUSED)
   //check address is in user address range
   if ((unsigned int)addr <= 0x8048000 || (unsigned int)addr >= 0xc0000000) 
       exit(-1);
-  
+
   struct vm_entry *entry = find_vme (addr);
-  if (entry == NULL) exit(-1);
-  if (entry) 
-    handle_mm_fault (entry);  
+
+  if (entry == NULL)
+    exit(-1);
+  
+  if (entry)
+    handle_mm_fault (entry);
 
   return entry;
 }
@@ -296,6 +302,7 @@ exit (int status)
   //exit thread
   struct thread *thread_cur = thread_current();  //현재 thread 를 받아옴
   printf ("%s: exit(%d)\n", thread_cur->name, status);  //종료상태 출력
+  //debug_backtrace();
   thread_cur->exit_status = status;  //종료상태 저장
   thread_exit();
 }
@@ -554,6 +561,7 @@ mmap (int fd, void *addr)
     entry->type = VM_FILE;
     entry->writable = true;
     entry->is_loaded = false;
+    printf("vm file!!\n");
 
     list_push_back (&mmap_fp->vme_list, &entry->mmap_elem);
     insert_vme (&thread_current()->vm, entry);
@@ -612,7 +620,7 @@ do_munmap (struct mmap_file *mmap_fp)
         lock_release (&filesys_lock);
       }
 
-      palloc_free_page (pagedir_get_page (thread_current()->pagedir, entry->vaddr));
+      free_page (pagedir_get_page (thread_current()->pagedir, entry->vaddr));
       pagedir_clear_page (thread_current()->pagedir, entry->vaddr);
     }
 
