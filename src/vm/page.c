@@ -22,7 +22,6 @@ void vm_init (struct hash *vm)
 
 static unsigned int vm_hash_func (const struct hash_elem *e, void *aux UNUSED)
 {
-  ASSERT (e != NULL);
   return hash_int (hash_entry (e, struct vm_entry, elem)->vaddr);
 }
 
@@ -88,8 +87,9 @@ bool load_file (void *kaddr, struct vm_entry *entry)
   {
     return false;
   }  
-
-  memset (kaddr + entry->read_bytes, 0, entry->zero_bytes);
-
+  else 
+  {
+    memset (kaddr + entry->read_bytes, 0, entry->zero_bytes);
+  }
   return true;
 }

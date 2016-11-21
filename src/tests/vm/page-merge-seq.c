@@ -99,9 +99,8 @@ merge (void)
 
       /* Advance merge pointer.
          Delete this chunk from the set if it's emptied. */ 
-      if ((++mp[min] - buf1) % CHUNK_SIZE == 0) {
+      if ((++mp[min] - buf1) % CHUNK_SIZE == 0) 
         mp[min] = mp[--mp_left]; 
-      }
     }
 }
 

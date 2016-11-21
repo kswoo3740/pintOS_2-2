@@ -135,7 +135,7 @@ start_process (void *file_name_)
 
   char *cmd_file_name = parse[0]; //첫번째로 나온 토큰은 명령어로 사용
 
-  vm_init (&thread_current()->vm); //Initialize hash_table
+//  vm_init (&thread_current()->vm); //Initialize hash_table
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);

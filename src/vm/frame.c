@@ -72,9 +72,11 @@ free_page (void *kaddr)
 {
   struct list_elem *e;
 
-  for (e = list_begin (&lru_list); e != list_end (&lru_list); e = list_next (e))
+  for (e = list_begin (&lru_list); e != list_end (&lru_list); )
   {
-    struct page *page = list_entry (e, struct page, lru);
+    struct list_elem *next_elem = list_next(e);
+
+    struct page *page = list_entry (e, struct page, lru); //Get page from lru list
 
     /*If addr of page is kaddr then free and end loop*/
     if (page->kaddr == kaddr)
@@ -82,6 +84,8 @@ free_page (void *kaddr)
       __free_page (page);
       break;
     }
+
+    e = next_elem;
   }
 }
 
@@ -152,7 +156,7 @@ try_to_free_pages (enum palloc_flags flags)
 
           lock_release (&filesys_lock);  //Unlock
         }
-        else if (page->vme->type != VM_BIN)//If vme is dirty VM_BIN or VM_ANON
+        else //If vme is dirty VM_BIN or VM_ANON
         {
           page->vme->type = VM_ANON;
           page->vme->swap_slot = swap_out (page->kaddr);
@@ -160,7 +164,7 @@ try_to_free_pages (enum palloc_flags flags)
       }
       page->vme->is_loaded = false;  //In swap partition
 
-      del_page_from_lru_list(page);  //Remove from memory
+      del_page_from_lru_list(page);  //Remove from lru list 
       
       pagedir_clear_page (t->pagedir, page->vme->vaddr);
       palloc_free_page (page->kaddr);
@@ -173,7 +177,9 @@ try_to_free_pages (enum palloc_flags flags)
   return NULL;
 }
 
-void free_all_pages (tid_t tid) {
+void
+free_all_pages (tid_t tid)
+{
   struct list_elem *elem, *tmp;
   struct page *page;
   for (elem = list_begin(&lru_list); elem != list_end (&lru_list);)

@@ -157,10 +157,8 @@ page_fault (struct intr_frame *f)
     //printf ("fault addr = %x, f->eip = %x\n", fault_addr, f->eip);
     if (entry)
     {
-       // printf("hello1\n");
       if (write && (entry->writable == 0))
         exit(-1);
-       // printf("hello2\n");
       if (!handle_mm_fault (entry))
         exit(-1);  
     }
