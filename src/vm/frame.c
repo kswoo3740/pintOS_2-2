@@ -180,6 +180,7 @@ try_to_free_pages (enum palloc_flags flags)
 void
 free_all_pages (tid_t tid)
 {
+  /* Remove page from lru_list after thread is died */  
   struct list_elem *elem, *tmp;
   struct page *page;
   for (elem = list_begin(&lru_list); elem != list_end (&lru_list);)

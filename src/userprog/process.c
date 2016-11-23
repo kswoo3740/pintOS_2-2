@@ -684,15 +684,15 @@ install_page (void *upage, void *kpage, bool writable)
 
 bool
 handle_mm_fault (struct vm_entry *vme)
-{
-  if (vme->is_loaded == true)
+{  
+  if (vme->is_loaded == true) //If already loaded return false
       return false;
 
   struct page *page = alloc_page (PAL_USER);
   page->vme = vme;
   void *kaddr = page->kaddr;
 
-  switch (vme->type)
+  switch (vme->type)  //If fail to load page, free page
   {
     case VM_BIN:
       if (!load_file (kaddr, vme))
@@ -715,7 +715,7 @@ handle_mm_fault (struct vm_entry *vme)
       break;
   }
   
-  if (!install_page (vme->vaddr, kaddr, vme->writable))
+  if (!install_page (vme->vaddr, kaddr, vme->writable)) //If success map to physical memory and vm
   {
     free_page(kaddr);
     return false;

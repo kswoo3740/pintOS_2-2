@@ -24,23 +24,23 @@ swap_in (size_t used_index, void *kaddr)
   struct block *swap_block;
   swap_block = block_get_role (BLOCK_SWAP);
 
-  if (!swap_block || !swap_bitmap)
+  if (!swap_block || !swap_bitmap)  //If swap space is not initialized or not available
     return;
 
   lock_acquire (&swap_lock);
 
-  if (pg_ofs (kaddr) != 0)
+  if (pg_ofs (kaddr) != 0) //If not aligned return 
     return;
 
-  if (bitmap_test (swap_bitmap, used_index) != 0)
+  if (bitmap_test (swap_bitmap, used_index) != 0)  //Check if target space of index is free
   {
     int i;
-    for (i = 0; i < PGSIZE / BLOCK_SECTOR_SIZE; i++)
+    for (i = 0; i < PGSIZE / BLOCK_SECTOR_SIZE; i++)  //Load data from disk to memory
     {
       block_read (swap_block, used_index * PGSIZE / BLOCK_SECTOR_SIZE + i, (uint8_t*)kaddr + i * BLOCK_SECTOR_SIZE);
     }
     
-    bitmap_flip (swap_bitmap, used_index);
+    bitmap_flip (swap_bitmap, used_index);  //Inverse bitmap state
   }
   
   lock_release (&swap_lock);
@@ -52,7 +52,7 @@ swap_out (void *kaddr)
   struct block *swap_block;
   swap_block = block_get_role (BLOCK_SWAP);
   
-  if (swap_block == NULL || swap_bitmap == NULL)
+  if (swap_block == NULL || swap_bitmap == NULL)  
   {
     NOT_REACHED();
   }
@@ -63,7 +63,7 @@ swap_out (void *kaddr)
 
   int i;
   
-  for (i = 0; i < PGSIZE / BLOCK_SECTOR_SIZE; i++)
+  for (i = 0; i < PGSIZE / BLOCK_SECTOR_SIZE; i++)  //Load data from memory to disk
     block_write (swap_block, free_bitmap * PGSIZE / BLOCK_SECTOR_SIZE + i, (uint8_t*) kaddr + i * BLOCK_SECTOR_SIZE);
 
   lock_release (&swap_lock);

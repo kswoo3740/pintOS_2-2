@@ -561,7 +561,6 @@ mmap (int fd, void *addr)
     entry->type = VM_FILE;
     entry->writable = true;
     entry->is_loaded = false;
-    //printf("vm file!!\n");
 
     list_push_back (&mmap_fp->vme_list, &entry->mmap_elem);
     insert_vme (&thread_current()->vm, entry);
@@ -587,7 +586,7 @@ munmap (int mapping)
   {
     struct mmap_file *mmap_fp = list_entry (e, struct mmap_file, elem);
 
-    if (mmap_fp->mapid == mapping || mapping == -1)
+    if (mmap_fp->mapid == mapping || mapping == -1) // If target mapid or remove all unmapping target
     {
       do_munmap (mmap_fp);
 
@@ -616,11 +615,11 @@ do_munmap (struct mmap_file *mmap_fp)
       if (pagedir_is_dirty (thread_current()->pagedir, entry->vaddr))
       {
         lock_acquire (&filesys_lock);
-        file_write_at (entry->file, entry->vaddr, entry->read_bytes, entry->offset);
+        file_write_at (entry->file, entry->vaddr, entry->read_bytes, entry->offset);  // Write dirty page to disk
         lock_release (&filesys_lock);
       }
 
-      free_page (pagedir_get_page (thread_current()->pagedir, entry->vaddr));
+      free_page (pagedir_get_page (thread_current()->pagedir, entry->vaddr));  // Clear page for vm entry
       pagedir_clear_page (thread_current()->pagedir, entry->vaddr);
     }
 
