@@ -251,6 +251,31 @@ check_valid_buffer (void *buffer, unsigned int size, void *esp, bool to_write)
   unsigned int i;
   struct vm_entry *entry;
   void *addr = buffer;
+  int last_ofs = size%PGSIZE;  
+
+  for (i = 0; i < size/PGSIZE; i++) 
+  {
+    entry = check_address (addr, esp);
+    if (to_write && !entry->writable)  //check entry is null and writable
+    {
+      exit(-1);
+    }
+    addr+=PGSIZE;
+  }
+  addr+=last_ofs;
+  entry = check_address (addr, esp);
+  if (to_write && !entry->writable)  //check entry is null and writable
+    {
+      exit(-1);
+    }
+}
+/*
+void
+check_valid_buffer (void *buffer, unsigned int size, void *esp, bool to_write)
+{
+  unsigned int i;
+  struct vm_entry *entry;
+  void *addr = buffer;
 
   for (i = 0; i < size; i++) 
   {
@@ -261,7 +286,7 @@ check_valid_buffer (void *buffer, unsigned int size, void *esp, bool to_write)
     }
     addr++;
   }
-}
+}*/
 
 void
 check_valid_string (const void *str, void *esp)
